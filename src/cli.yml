@@ -1,0 +1,14 @@
+name: patchling
+version: "0.0.0"
+author: Tyler Slabinski <tslabinski@slabity.net>
+about: Description here
+args:
+    - log-file:
+        long: log
+        value_name: LOG_FILE
+        help: Sets the location of the log file
+        takes_value: true
+    - log-level:
+        long: log-level
+        value_name: LOG_LEVEL
+        help: Sets the logging verbosity
