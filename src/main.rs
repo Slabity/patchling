@@ -1,9 +1,9 @@
 #[macro_use]
 extern crate clap;
 use clap::App;
+use clap::ArgMatches;
 
 extern crate fern;
-extern crate chrono;
 
 #[macro_use]
 extern crate log;
@@ -14,13 +14,17 @@ extern crate error_chain;
 mod result;
 use result::*;
 
-fn run() -> Result<()> {
-    Ok(())
+fn run(matches: &ArgMatches) -> Result<()> {
+    debug!("{:#?}", matches);
+    Err("Test".into())
 }
 
 fn init_logger(file: &str, level: &str) -> Result<()> {
+    use fern::FormatCallback as Callback;
+    use log::LogRecord as Record;
+    use std::fmt::Arguments as Args;
 
-    let format = | callback: fern::FormatCallback, message: &std::fmt::Arguments, record: &log::LogRecord | {
+    let format = | callback: Callback, message: &Args, record: &Record | {
         callback.finish(format_args!("[{}] {}", record.level(), message))
     };
 
@@ -58,42 +62,40 @@ fn init_logger(file: &str, level: &str) -> Result<()> {
     Ok(())
 }
 
+fn print_error_backtrace(err: Error) {
+    for e in err.iter() {
+        error!("caused by: {}", &e);
+    }
+
+    if let Some(backtrace) = err.backtrace() {
+        error!("[BACKTRACE]: {:?}", backtrace)
+    }
+
+    print_stderr_backtrace(err);
+}
+
+fn print_stderr_backtrace(err: Error) {
+    for e in err.iter() {
+        eprintln!("[ERROR] caused by: {}", &e);
+    }
+
+    if let Some(backtrace) = err.backtrace() {
+        eprintln!("[BACKTRACE]: {:?}", backtrace);
+    }
+}
+
 fn main() {
     let yaml = load_yaml!("cli.yml");
-    let matches = App::from_yaml(yaml).get_matches();
+    let matches: ArgMatches = App::from_yaml(yaml).get_matches();
 
     let log_file = matches.value_of("log-file").unwrap_or("<stdout>");
     let log_level = matches.value_of("log-level").unwrap_or("INFO");
 
-    if let Err(ref e) = init_logger(log_file, log_level) {
-        use std::io::Write;
-        let stderr = &mut ::std::io::stderr();
-        let msg = "Error writing to stderr";
-
-        writeln!(stderr, "error: {}", e).expect(msg);
-
-        for e in e.iter().skip(1) {
-            writeln!(stderr, "caused by: {}", e).expect(msg);
-        }
-
-        if let Some(backtrace) = e.backtrace() {
-            writeln!(stderr, "backtrace: {:?}", backtrace).expect(msg);
-        }
+    if let Err(e) = init_logger(log_file, log_level) {
+        print_stderr_backtrace(e);
     }
 
-    if let Err(ref e) = run() {
-        use std::io::Write;
-        let stderr = &mut ::std::io::stderr();
-        let msg = "Error writing to stderr";
-
-        writeln!(stderr, "error: {}", e).expect(msg);
-
-        for e in e.iter().skip(1) {
-            writeln!(stderr, "caused by: {}", e).expect(msg);
-        }
-
-        if let Some(backtrace) = e.backtrace() {
-            writeln!(stderr, "backtrace: {:?}", backtrace).expect(msg);
-        }
+    if let Err(e) = run(&matches) {
+        print_error_backtrace(e);
     }
 }
