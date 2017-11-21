@@ -1,22 +1,28 @@
-#[macro_use]
-extern crate clap;
+#[macro_use] extern crate clap;
 use clap::App;
 use clap::ArgMatches;
 
 extern crate fern;
+#[macro_use] extern crate log;
 
-#[macro_use]
-extern crate log;
+extern crate failure;
+#[macro_use] extern crate failure_derive;
 
-#[macro_use]
-extern crate error_chain;
+#[macro_use] extern crate conrod;
 
 mod result;
 use result::*;
 
+mod gui;
+
 fn run(matches: &ArgMatches) -> Result<()> {
-    debug!("{:#?}", matches);
-    Err("Test".into())
+    use std::thread;
+
+    let gui = thread::spawn(gui::run);
+
+    gui.join();
+
+    Ok(())
 }
 
 fn init_logger(file: &str, level: &str) -> Result<()> {
@@ -28,7 +34,7 @@ fn init_logger(file: &str, level: &str) -> Result<()> {
         callback.finish(format_args!("[{}] {}", record.level(), message))
     };
 
-    let verbosity = match level {
+    let verbosity = match level.to_uppercase().as_ref() {
         "OFF" => log::LogLevelFilter::Off,
         "ERROR" => log::LogLevelFilter::Error,
         "WARN" => log::LogLevelFilter::Warn,
