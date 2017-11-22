@@ -1,33 +1,30 @@
 #[macro_use] extern crate clap;
-use clap::App;
-use clap::ArgMatches;
-
 extern crate fern;
 #[macro_use] extern crate log;
-
 extern crate failure;
 #[macro_use] extern crate failure_derive;
-
 #[macro_use] extern crate conrod;
 
-mod result;
-use result::*;
+use self::clap::ArgMatches;
+use self::failure::Error;
 
 mod gui;
 
-fn run(matches: &ArgMatches) -> Result<()> {
+fn run(matches: &ArgMatches) -> Result<(), Error> {
     use std::thread;
 
-    let gui = thread::spawn(gui::run);
+    let gui = thread::spawn(|| {
+        gui::run().unwrap()
+    });
 
     gui.join();
 
     Ok(())
 }
 
-fn init_logger(file: &str, level: &str) -> Result<()> {
-    use fern::FormatCallback as Callback;
-    use log::LogRecord as Record;
+fn init_logger(file: &str, level: &str) -> Result<(), Error> {
+    use self::fern::FormatCallback as Callback;
+    use self::log::LogRecord as Record;
     use std::fmt::Arguments as Args;
 
     let format = | callback: Callback, message: &Args, record: &Record | {
@@ -35,15 +32,13 @@ fn init_logger(file: &str, level: &str) -> Result<()> {
     };
 
     let verbosity = match level.to_uppercase().as_ref() {
-        "OFF" => log::LogLevelFilter::Off,
+        "OFF"   => log::LogLevelFilter::Off,
         "ERROR" => log::LogLevelFilter::Error,
-        "WARN" => log::LogLevelFilter::Warn,
-        "INFO" => log::LogLevelFilter::Info,
+        "WARN"  => log::LogLevelFilter::Warn,
+        "INFO"  => log::LogLevelFilter::Info,
         "DEBUG" => log::LogLevelFilter::Debug,
         "TRACE" => log::LogLevelFilter::Trace,
-        &_ => {
-            log::LogLevelFilter::Off
-        }
+        &_      => log::LogLevelFilter::Off
     };
 
     let dispatch = match file {
@@ -68,29 +63,20 @@ fn init_logger(file: &str, level: &str) -> Result<()> {
     Ok(())
 }
 
-fn print_error_backtrace(err: Error) {
-    for e in err.iter() {
-        error!("caused by: {}", &e);
-    }
-
-    if let Some(backtrace) = err.backtrace() {
-        error!("[BACKTRACE]: {:?}", backtrace)
-    }
-
-    print_stderr_backtrace(err);
+fn log_error(err: Error) {
+    error!("{}", err);
+    error!("[BACKTRACE]: {}", err.backtrace());
+    eprint_error(err);
 }
 
-fn print_stderr_backtrace(err: Error) {
-    for e in err.iter() {
-        eprintln!("[ERROR] caused by: {}", &e);
-    }
-
-    if let Some(backtrace) = err.backtrace() {
-        eprintln!("[BACKTRACE]: {:?}", backtrace);
-    }
+fn eprint_error(err: Error) {
+    eprintln!("{}", err);
+    eprintln!("[BACKTRACE]: {}", err.backtrace());
 }
 
 fn main() {
+    use self::clap::App;
+
     let yaml = load_yaml!("cli.yml");
     let matches: ArgMatches = App::from_yaml(yaml).get_matches();
 
@@ -98,10 +84,10 @@ fn main() {
     let log_level = matches.value_of("log-level").unwrap_or("INFO");
 
     if let Err(e) = init_logger(log_file, log_level) {
-        print_stderr_backtrace(e);
+        eprint_error(e);
     }
 
     if let Err(e) = run(&matches) {
-        print_error_backtrace(e);
+        log_error(e);
     }
 }
